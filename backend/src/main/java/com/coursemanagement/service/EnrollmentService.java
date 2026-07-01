@@ -4,7 +4,6 @@ import com.coursemanagement.entity.Enrollment;
 import com.coursemanagement.entity.User;
 import com.coursemanagement.entity.Course;
 import com.coursemanagement.repository.EnrollmentRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,8 +13,12 @@ import java.util.Optional;
 @Service
 @Transactional
 public class EnrollmentService {
-    @Autowired
-    private EnrollmentRepository enrollmentRepository;
+
+    private final EnrollmentRepository enrollmentRepository;
+
+    public EnrollmentService(EnrollmentRepository enrollmentRepository) {
+        this.enrollmentRepository = enrollmentRepository;
+    }
 
     public List<Enrollment> getEnrollmentsByStudent(User student) {
         return enrollmentRepository.findByStudentAndActiveTrue(student);

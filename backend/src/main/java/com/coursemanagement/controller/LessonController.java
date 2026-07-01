@@ -1,4 +1,4 @@
-package com.coursemanagement.controller;
+﻿package com.coursemanagement.controller;
 
 import com.coursemanagement.dto.LessonRequest;
 import com.coursemanagement.dto.LessonResponse;
@@ -9,32 +9,32 @@ import com.coursemanagement.service.CourseService;
 import com.coursemanagement.service.LessonService;
 import com.coursemanagement.service.ProgressService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/lessons")
 public class LessonController {
-    @Autowired
-    private LessonService lessonService;
 
-    @Autowired
-    private CourseService courseService;
+    private final LessonService lessonService;
+    private final CourseService courseService;
+    private final ProgressService progressService;
 
-    @Autowired
-    private ProgressService progressService;
+    public LessonController(LessonService lessonService, CourseService courseService, ProgressService progressService) {
+        this.lessonService = lessonService;
+        this.courseService = courseService;
+        this.progressService = progressService;
+    }
 
     @GetMapping("/course/{courseId}")
     public ResponseEntity<List<LessonResponse>> getLessonsByCourse(@PathVariable Long courseId) {
-        List<Lesson> lessons = lessonService.getLessonsByCourseId(courseId);
-        List<LessonResponse> lessonResponses = lessons.stream()
+        List<LessonResponse> lessonResponses = lessonService.getLessonsByCourseId(courseId).stream()
                 .map(LessonResponse::new)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(lessonResponses);
@@ -42,112 +42,77 @@ public class LessonController {
 
     @GetMapping("/{id}")
     public ResponseEntity<LessonResponse> getLessonById(@PathVariable Long id, Authentication authentication) {
-        Optional<Lesson> lessonOpt = lessonService.getLessonById(id);
-        if (lessonOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        
-        Lesson lesson = lessonOpt.get();
+        Lesson lesson = lessonService.getLessonByIdOrThrow(id);
         User user = (User) authentication.getPrincipal();
-        
-        // Update last accessed for students
+
         if (user.getRole() == User.Role.STUDENT) {
             progressService.updateLastAccessed(user, lesson);
         }
-        
-        LessonResponse lessonResponse = new LessonResponse(lesson);
-        return ResponseEntity.ok(lessonResponse);
+
+        return ResponseEntity.ok(new LessonResponse(lesson));
     }
 
     @PostMapping("/course/{courseId}")
-    public ResponseEntity<LessonResponse> createLesson(@PathVariable Long courseId, 
-                                              @Valid @RequestBody LessonRequest lessonRequest,
-                                              Authentication authentication) {
+    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    public ResponseEntity<LessonResponse> createLesson(@PathVariable Long courseId,
+                                                       @Valid @RequestBody LessonRequest lessonRequest,
+                                                       Authentication authentication) {
         User user = (User) authentication.getPrincipal();
-        Optional<Course> courseOpt = courseService.getCourseById(courseId);
-        
-        if (courseOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        
-        Course course = courseOpt.get();
-        
-        // Check if user is the instructor or admin
+        Course course = courseService.getCourseByIdOrThrow(courseId);
+
         if (!course.getInstructor().getId().equals(user.getId()) && user.getRole() != User.Role.ADMIN) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        
+
         Lesson lesson = new Lesson(lessonRequest.getTitle(), lessonRequest.getContent(), course);
         lesson.setVideoUrl(lessonRequest.getVideoUrl());
         lesson.setOrder(lessonRequest.getOrder());
-        
+
         Lesson savedLesson = lessonService.createLesson(lesson);
-        LessonResponse lessonResponse = new LessonResponse(savedLesson);
-        return ResponseEntity.ok(lessonResponse);
+        return ResponseEntity.status(HttpStatus.CREATED).body(new LessonResponse(savedLesson));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<LessonResponse> updateLesson(@PathVariable Long id, 
-                                              @Valid @RequestBody LessonRequest lessonRequest,
-                                              Authentication authentication) {
+    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    public ResponseEntity<LessonResponse> updateLesson(@PathVariable Long id,
+                                                       @Valid @RequestBody LessonRequest lessonRequest,
+                                                       Authentication authentication) {
         User user = (User) authentication.getPrincipal();
-        Optional<Lesson> lessonOpt = lessonService.getLessonById(id);
-        
-        if (lessonOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        
-        Lesson lesson = lessonOpt.get();
-        
-        // Check if user is the instructor or admin
+        Lesson lesson = lessonService.getLessonByIdOrThrow(id);
+
         if (!lesson.getCourse().getInstructor().getId().equals(user.getId()) && user.getRole() != User.Role.ADMIN) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        
+
         lesson.setTitle(lessonRequest.getTitle());
         lesson.setContent(lessonRequest.getContent());
         lesson.setVideoUrl(lessonRequest.getVideoUrl());
         lesson.setOrder(lessonRequest.getOrder());
-        
+
         Lesson updatedLesson = lessonService.updateLesson(lesson);
-        LessonResponse lessonResponse = new LessonResponse(updatedLesson);
-        return ResponseEntity.ok(lessonResponse);
+        return ResponseEntity.ok(new LessonResponse(updatedLesson));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteLesson(@PathVariable Long id, Authentication authentication) {
+    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    public ResponseEntity<Void> deleteLesson(@PathVariable Long id, Authentication authentication) {
         User user = (User) authentication.getPrincipal();
-        Optional<Lesson> lessonOpt = lessonService.getLessonById(id);
-        
-        if (lessonOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        
-        Lesson lesson = lessonOpt.get();
-        
-        // Check if user is the instructor or admin
+        Lesson lesson = lessonService.getLessonByIdOrThrow(id);
+
         if (!lesson.getCourse().getInstructor().getId().equals(user.getId()) && user.getRole() != User.Role.ADMIN) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        
+
         lessonService.deleteLesson(id);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{lessonId}/complete")
-    public ResponseEntity<?> markLessonAsCompleted(@PathVariable Long lessonId, Authentication authentication) {
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<Void> markLessonAsCompleted(@PathVariable Long lessonId, Authentication authentication) {
         User user = (User) authentication.getPrincipal();
-        
-        if (user.getRole() != User.Role.STUDENT) {
-            return ResponseEntity.badRequest().body("Only students can mark lessons as completed");
-        }
-        
-        Optional<Lesson> lessonOpt = lessonService.getLessonById(lessonId);
-        if (lessonOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        
-        progressService.markLessonAsCompleted(user, lessonOpt.get());
+        Lesson lesson = lessonService.getLessonByIdOrThrow(lessonId);
+        progressService.markLessonAsCompleted(user, lesson);
         return ResponseEntity.ok().build();
     }
 }

@@ -1,100 +1,113 @@
 import React, { useState } from 'react';
-import { Container, Row, Col, Card, Form, Button, Alert } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
-
+    setLoading(true);
     try {
-      await login(formData.email, formData.password);
-      navigate('/dashboard');
-    } catch (error) {
-      setError(error.response?.data?.message || 'Login failed. Please try again.');
+      const userData = await login(email, password);
+      if (userData.role === 'ADMIN') navigate('/admin');
+      else navigate('/dashboard');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Container>
-      <Row className="justify-content-center">
-        <Col md={6} lg={4}>
-          <Card>
-            <Card.Body>
-              <h2 className="text-center mb-4">Login</h2>
-              
-              {error && <Alert variant="danger">{error}</Alert>}
-              
-              <Form onSubmit={handleSubmit}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Email</Form.Label>
-                  <Form.Control
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                  />
-                </Form.Group>
-                
-                <Form.Group className="mb-3">
-                  <Form.Label>Password</Form.Label>
-                  <Form.Control
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    required
-                  />
-                </Form.Group>
-                
-                <Button
-                  type="submit"
-                  variant="primary"
-                  className="w-100"
-                  disabled={loading}
-                >
-                  {loading ? 'Logging in...' : 'Login'}
-                </Button>
-              </Form>
-              
-              <div className="text-center mt-3">
-                <p>Don't have an account? <Link to="/register">Sign up</Link></p>
-              </div>
+    <div style={{
+      minHeight: 'calc(100vh - 80px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'radial-gradient(ellipse at 50% 0%, rgba(139,92,246,0.12) 0%, transparent 60%), var(--color-bg)',
+      padding: '2rem 1rem',
+      marginLeft: '-1.5rem', marginRight: '-1.5rem', marginTop: '-2rem',
+    }}>
+      <div style={{ width: '100%', maxWidth: '440px' }} className="scale-in">
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🎓</div>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+            Welcome back
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            Sign in to continue your learning journey
+          </p>
+        </div>
 
-              <div className="mt-4">
-                <small className="text-muted">
-                  <strong>Test Credentials:</strong><br />
-                  Admin: admin@example.com / password123<br />
-                  Instructor: instructor@example.com / password123<br />
-                  Student: student@example.com / password123
-                </small>
-              </div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+        <div className="form-premium">
+          {error && (
+            <div className="alert-premium alert-danger-premium" style={{ marginBottom: '1.5rem' }}>
+              ⚠️ {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            <div className="form-group-premium">
+              <label className="form-label-premium">Email Address</label>
+              <input
+                type="email"
+                className="form-control-premium"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+
+            <div className="form-group-premium">
+              <label className="form-label-premium">Password</label>
+              <input
+                type="password"
+                className="form-control-premium"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-premium btn-primary-premium"
+              style={{ width: '100%', justifyContent: 'center', padding: '0.85rem', marginTop: '0.5rem', fontSize: '0.95rem', opacity: loading ? 0.7 : 1 }}
+            >
+              {loading ? (
+                <>
+                  <div className="spinner-ring" style={{ width: '18px', height: '18px', borderWidth: '2px' }} />
+                  Signing in...
+                </>
+              ) : (
+                '🚀 Sign In'
+              )}
+            </button>
+          </form>
+
+          <div className="divider" />
+
+          <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+            Don't have an account?{' '}
+            <Link to="/register" style={{ color: 'var(--color-primary-light)', fontWeight: 600, textDecoration: 'none' }}>
+              Create one →
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
   );
 };
 

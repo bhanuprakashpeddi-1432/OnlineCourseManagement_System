@@ -1,175 +1,183 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Spinner, Alert, Table, Badge } from 'react-bootstrap';
 import { adminService } from '../services/api';
 
 const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
+  const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [togglingId, setTogglingId] = useState(null);
 
   useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await adminService.getAllUsers();
+        setUsers(res.data);
+        setFiltered(res.data);
+      } catch (err) {
+        setError('Failed to load users.');
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchUsers();
   }, []);
 
-  const fetchUsers = async () => {
+  useEffect(() => {
+    if (!search.trim()) { setFiltered(users); return; }
+    const q = search.toLowerCase();
+    setFiltered(users.filter(u =>
+      u.firstName?.toLowerCase().includes(q) ||
+      u.lastName?.toLowerCase().includes(q) ||
+      u.email?.toLowerCase().includes(q) ||
+      u.role?.toLowerCase().includes(q)
+    ));
+  }, [search, users]);
+
+  const handleToggle = async (userId) => {
+    setTogglingId(userId);
     try {
-      const response = await adminService.getAllUsers();
-      setUsers(response.data);
-    } catch (error) {
-      setError('Failed to fetch users');
+      const res = await adminService.toggleUserStatus(userId);
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, enabled: res.data.enabled } : u));
+    } catch (err) {
+      alert('Failed to update user status.');
     } finally {
-      setLoading(false);
+      setTogglingId(null);
     }
   };
 
-  const handleToggleUserStatus = async (userId) => {
-    try {
-      await adminService.toggleUserStatus(userId);
-      // Refresh users list
-      fetchUsers();
-    } catch (error) {
-      alert('Failed to toggle user status');
-    }
+  const stats = [
+    { icon: '👥', label: 'Total Users', value: users.length, iconClass: 'stat-icon-purple' },
+    { icon: '📚', label: 'Students', value: users.filter(u => u.role === 'STUDENT').length, iconClass: 'stat-icon-cyan' },
+    { icon: '🎓', label: 'Instructors', value: users.filter(u => u.role === 'INSTRUCTOR').length, iconClass: 'stat-icon-green' },
+    { icon: '✅', label: 'Active Users', value: users.filter(u => u.enabled).length, iconClass: 'stat-icon-amber' },
+  ];
+
+  const roleColors = {
+    ADMIN: 'badge-danger',
+    INSTRUCTOR: 'badge-purple',
+    STUDENT: 'badge-cyan',
   };
 
-  const getUserRoleBadge = (role) => {
-    const variants = {
-      ADMIN: 'danger',
-      INSTRUCTOR: 'primary',
-      STUDENT: 'success'
-    };
-    return <Badge bg={variants[role]}>{role}</Badge>;
-  };
-
-  const getStatusBadge = (enabled) => {
-    return (
-      <Badge bg={enabled ? 'success' : 'secondary'}>
-        {enabled ? 'Active' : 'Disabled'}
-      </Badge>
-    );
-  };
-
-  if (loading) {
-    return (
-      <Container>
-        <div className="text-center">
-          <Spinner animation="border" />
-          <p>Loading admin dashboard...</p>
-        </div>
-      </Container>
-    );
-  }
-
-  const stats = {
-    total: users.length,
-    admins: users.filter(u => u.role === 'ADMIN').length,
-    instructors: users.filter(u => u.role === 'INSTRUCTOR').length,
-    students: users.filter(u => u.role === 'STUDENT').length,
-    active: users.filter(u => u.enabled).length
-  };
+  const initials = (u) => `${u.firstName?.[0] || ''}${u.lastName?.[0] || ''}`.toUpperCase();
 
   return (
-    <Container>
-      <Row className="mb-4">
-        <Col>
-          <h1>Admin Dashboard</h1>
-          <p className="lead">Manage users and monitor platform activity</p>
-        </Col>
-      </Row>
+    <div className="fade-in-up">
+      {/* Header */}
+      <div className="page-header">
+        <h1 className="page-title">
+          Admin <span className="gradient-text">Dashboard</span>
+        </h1>
+        <p className="page-subtitle">Manage users, monitor platform activity</p>
+      </div>
 
-      {error && <Alert variant="danger">{error}</Alert>}
-
-      {/* Statistics Cards */}
-      <Row className="mb-4">
-        <Col md={3}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-primary">{stats.total}</h3>
-              <p>Total Users</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-success">{stats.students}</h3>
-              <p>Students</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-info">{stats.instructors}</h3>
-              <p>Instructors</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-warning">{stats.admins}</h3>
-              <p>Admins</p>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
+        {stats.map((s) => (
+          <div key={s.label} className="stat-card">
+            <div className={`stat-icon ${s.iconClass}`}>{s.icon}</div>
+            <div className="stat-value">{s.value}</div>
+            <div className="stat-label">{s.label}</div>
+          </div>
+        ))}
+      </div>
 
       {/* Users Table */}
-      <Row>
-        <Col>
-          <Card>
-            <Card.Header>
-              <h4>All Users</h4>
-            </Card.Header>
-            <Card.Body>
-              <Table responsive striped hover>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Created At</th>
-                    <th>Actions</th>
+      <div className="card-premium" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap', gap: '1rem' }}>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            👥 All Users
+          </h2>
+          <div className="search-container" style={{ maxWidth: '300px' }}>
+            <span className="search-icon">🔍</span>
+            <input
+              type="text" className="search-input"
+              placeholder="Search users..."
+              value={search} onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="spinner-premium">
+            <div className="spinner-ring" />
+            <p style={{ color: 'var(--text-muted)' }}>Loading users...</p>
+          </div>
+        ) : error ? (
+          <div style={{ padding: '2rem' }}>
+            <div className="alert-premium alert-danger-premium">{error}</div>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table-premium">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((user) => (
+                  <tr key={user.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, color: 'white', flexShrink: 0 }}>
+                          {initials(user)}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                            {user.firstName} {user.lastName}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>#{user.id}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{user.email}</td>
+                    <td>
+                      <span className={`badge-premium ${roleColors[user.role] || 'badge-purple'}`}>
+                        {user.role}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`badge-premium ${user.enabled ? 'badge-success' : 'badge-danger'}`}>
+                        {user.enabled ? 'Active' : 'Disabled'}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => handleToggle(user.id)}
+                        disabled={togglingId === user.id}
+                        className={`btn-premium ${user.enabled ? 'btn-danger-premium' : ''}`}
+                        style={{
+                          padding: '0.35rem 0.9rem',
+                          fontSize: '0.8rem',
+                          background: !user.enabled ? 'rgba(16,185,129,0.15)' : undefined,
+                          color: !user.enabled ? 'var(--color-success)' : undefined,
+                          border: !user.enabled ? '1px solid rgba(16,185,129,0.3)' : undefined,
+                          opacity: togglingId === user.id ? 0.6 : 1,
+                        }}
+                      >
+                        {togglingId === user.id ? '...' : user.enabled ? 'Disable' : 'Enable'}
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {users.map(user => (
-                    <tr key={user.id}>
-                      <td>{user.id}</td>
-                      <td>{user.firstName} {user.lastName}</td>
-                      <td>{user.email}</td>
-                      <td>{getUserRoleBadge(user.role)}</td>
-                      <td>{getStatusBadge(user.enabled)}</td>
-                      <td>
-                        {new Date(user.createdAt).toLocaleDateString()}
-                      </td>
-                      <td>
-                        <Button
-                          size="sm"
-                          variant={user.enabled ? 'outline-danger' : 'outline-success'}
-                          onClick={() => handleToggleUserStatus(user.id)}
-                        >
-                          {user.enabled ? 'Disable' : 'Enable'}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-              
-              {users.length === 0 && (
-                <div className="text-center py-4">
-                  <p className="text-muted">No users found.</p>
-                </div>
-              )}
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+                ))}
+              </tbody>
+            </table>
+            {filtered.length === 0 && (
+              <div className="empty-state" style={{ padding: '3rem 2rem' }}>
+                <div className="empty-state-icon">🔭</div>
+                <div className="empty-state-title">No users found</div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 

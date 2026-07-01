@@ -1,159 +1,161 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Row, Col, Card, Button, Spinner, Alert, Form } from 'react-bootstrap';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import { courseService } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const Courses = () => {
   const { currentUser, hasRole } = useAuth();
   const [courses, setCourses] = useState([]);
-  const [filteredCourses, setFilteredCourses] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [enrolling, setEnrolling] = useState(null);
+  const [enrolled, setEnrolled] = useState(new Set());
 
-  const fetchCourses = useCallback(async () => {
-    try {
-      let response;
-      if (currentUser && hasRole(['STUDENT'])) {
-        response = await courseService.getAvailableCourses();
-      } else {
-        response = await courseService.getAllCourses();
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const res = await courseService.getAllCourses();
+        setCourses(res.data);
+        setFiltered(res.data);
+      } catch (err) {
+        setError('Failed to load courses. Please try again.');
+      } finally {
+        setLoading(false);
       }
-      // Ensure courses is always an array
-      const coursesData = Array.isArray(response.data) ? response.data : [];
-      setCourses(coursesData);
-      setError(''); // Clear any previous errors
-    } catch (error) {
-      console.error('Failed to fetch courses:', error);
-      setError('Failed to fetch courses. Please try again later.');
-      setCourses([]); // Set empty array on error
-    } finally {
-      setLoading(false);
-    }
-  }, [currentUser, hasRole]);
-
-  useEffect(() => {
+    };
     fetchCourses();
-  }, [fetchCourses]);
+  }, []);
 
   useEffect(() => {
-    // Filter courses based on search term - ensure courses is an array
-    if (Array.isArray(courses)) {
-      const filtered = courses.filter(course =>
-        course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        course.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        `${course.instructor.firstName} ${course.instructor.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredCourses(filtered);
+    if (!search.trim()) {
+      setFiltered(courses);
     } else {
-      setFilteredCourses([]);
+      const q = search.toLowerCase();
+      setFiltered(courses.filter(c =>
+        c.title?.toLowerCase().includes(q) ||
+        c.description?.toLowerCase().includes(q) ||
+        c.instructorName?.toLowerCase().includes(q)
+      ));
     }
-  }, [courses, searchTerm]);
+  }, [search, courses]);
 
   const handleEnroll = async (courseId) => {
+    if (!currentUser) return;
+    setEnrolling(courseId);
     try {
       await courseService.enrollInCourse(courseId);
-      // Remove the course from available courses after enrollment
-      setCourses(courses.filter(course => course.id !== courseId));
-      alert('Successfully enrolled in the course!');
-    } catch (error) {
-      alert(error.response?.data || 'Failed to enroll in course');
+      setEnrolled(prev => new Set([...prev, courseId]));
+    } catch (err) {
+      alert(err.response?.data || 'Failed to enroll. You may already be enrolled.');
+    } finally {
+      setEnrolling(null);
     }
   };
 
-  if (loading) {
-    return (
-      <Container>
-        <div className="text-center">
-          <Spinner animation="border" />
-          <p>Loading courses...</p>
-        </div>
-      </Container>
-    );
-  }
-
   return (
-    <Container>
-      <Row className="mb-4">
-        <Col>
-          <h1>
-            {currentUser && hasRole(['STUDENT']) ? 'Available Courses' : 'All Courses'}
+    <div className="fade-in-up">
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 className="page-title">
+            Explore <span className="gradient-text">Courses</span>
           </h1>
-          <p className="lead">
-            {currentUser && hasRole(['STUDENT']) 
-              ? 'Discover new courses to expand your knowledge'
-              : 'Explore our course catalog'
-            }
+          <p className="page-subtitle">
+            {filtered.length} course{filtered.length !== 1 ? 's' : ''} available
           </p>
-        </Col>
-      </Row>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="search-container">
+            <span className="search-icon">🔍</span>
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search courses, instructors..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {hasRole(['INSTRUCTOR', 'ADMIN']) && (
+            <Link to="/create-course" className="btn-premium btn-primary-premium">
+              ➕ Create Course
+            </Link>
+          )}
+        </div>
+      </div>
 
-      {error && <Alert variant="danger">{error}</Alert>}
-
-      <Row className="mb-4">
-        <Col md={6}>
-          <Form.Control
-            type="text"
-            placeholder="Search courses..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </Col>
-      </Row>
-
-      {filteredCourses.length === 0 ? (
-        <Alert variant="info">
-          {searchTerm 
-            ? 'No courses found matching your search criteria.'
-            : currentUser && hasRole(['STUDENT'])
-              ? 'No courses available for enrollment at the moment.'
-              : 'No courses available at the moment.'
-          }
-        </Alert>
+      {loading ? (
+        <div className="spinner-premium">
+          <div className="spinner-ring" />
+          <p style={{ color: 'var(--text-muted)' }}>Loading courses...</p>
+        </div>
+      ) : error ? (
+        <div className="alert-premium alert-danger-premium">{error}</div>
+      ) : filtered.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">🔭</div>
+          <div className="empty-state-title">No courses found</div>
+          <div className="empty-state-text">
+            {search ? `No results for "${search}". Try a different search term.` : 'No courses available yet. Check back soon!'}
+          </div>
+          {search && (
+            <button className="btn-premium btn-ghost-premium" style={{ marginTop: '1rem' }} onClick={() => setSearch('')}>
+              Clear Search
+            </button>
+          )}
+        </div>
       ) : (
-        <Row>
-          {filteredCourses.map(course => (
-            <Col md={6} lg={4} key={course.id} className="mb-4">
-              <Card className="course-card h-100">
-                <Card.Body className="d-flex flex-column">
-                  <Card.Title>{course.title}</Card.Title>
-                  <Card.Text className="flex-grow-1">{course.description}</Card.Text>
-                  <Card.Text>
-                    <small className="text-muted">
-                      Instructor: {course.instructor.firstName} {course.instructor.lastName}
-                    </small>
-                  </Card.Text>
-                  <div className="mt-auto">
-                    {currentUser ? (
-                      <div className="d-grid gap-2">
-                        <Button as={Link} to={`/course/${course.id}`} variant="outline-primary">
-                          View Details
-                        </Button>
-                        {hasRole(['STUDENT']) && (
-                          <Button 
-                            onClick={() => handleEnroll(course.id)}
-                            variant="primary"
-                          >
-                            Enroll Now
-                          </Button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="d-grid gap-2">
-                        <Button as={Link} to="/login" variant="primary">
-                          Login to Enroll
-                        </Button>
-                      </div>
-                    )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '1.25rem' }}>
+          {filtered.map((course) => {
+            const isEnrolled = enrolled.has(course.id);
+            return (
+              <div key={course.id} className="card-premium course-card-premium">
+                <div className="course-card-badge">📘 {course.active ? 'Active' : 'Inactive'}</div>
+                <div className="course-card-title">{course.title}</div>
+                <div className="course-card-desc">{course.description}</div>
+
+                <div className="course-card-meta">
+                  <div className="course-card-avatar">
+                    {(course.instructorName || 'I')[0].toUpperCase()}
                   </div>
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+                  <span>{course.instructorName || 'Instructor'}</span>
+                  {course.lessonCount !== undefined && (
+                    <span style={{ marginLeft: 'auto' }}>📝 {course.lessonCount} lessons</span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+                  <Link
+                    to={`/course/${course.id}`}
+                    className="btn-premium btn-ghost-premium"
+                    style={{ flex: 1, justifyContent: 'center', padding: '0.5rem' }}
+                  >
+                    View Details
+                  </Link>
+                  {hasRole(['STUDENT']) && (
+                    <button
+                      onClick={() => handleEnroll(course.id)}
+                      disabled={isEnrolled || enrolling === course.id}
+                      className={`btn-premium ${isEnrolled ? '' : 'btn-primary-premium'}`}
+                      style={{
+                        flex: 1, justifyContent: 'center', padding: '0.5rem',
+                        background: isEnrolled ? 'rgba(16,185,129,0.15)' : undefined,
+                        color: isEnrolled ? 'var(--color-success)' : undefined,
+                        border: isEnrolled ? '1px solid rgba(16,185,129,0.3)' : undefined,
+                        opacity: enrolling === course.id ? 0.7 : 1,
+                      }}
+                    >
+                      {isEnrolled ? '✅ Enrolled' : enrolling === course.id ? 'Enrolling...' : '🚀 Enroll'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
-    </Container>
+    </div>
   );
 };
 

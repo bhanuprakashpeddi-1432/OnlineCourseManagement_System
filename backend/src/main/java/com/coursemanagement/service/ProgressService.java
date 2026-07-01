@@ -4,7 +4,6 @@ import com.coursemanagement.entity.Progress;
 import com.coursemanagement.entity.User;
 import com.coursemanagement.entity.Lesson;
 import com.coursemanagement.repository.ProgressRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,8 +14,12 @@ import java.util.Optional;
 @Service
 @Transactional
 public class ProgressService {
-    @Autowired
-    private ProgressRepository progressRepository;
+
+    private final ProgressRepository progressRepository;
+
+    public ProgressService(ProgressRepository progressRepository) {
+        this.progressRepository = progressRepository;
+    }
 
     public List<Progress> getProgressByStudent(User student) {
         return progressRepository.findByStudent(student);

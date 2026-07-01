@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Navigation from './components/Navigation';
 import Home from './pages/Home';
@@ -16,79 +16,97 @@ import EditCourse from './pages/EditCourse';
 import CreateLesson from './pages/CreateLesson';
 import EditLesson from './pages/EditLesson';
 
-function App() {
+// Scroll to top on every route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
+
+function AppRoutes() {
   return (
     <AuthProvider>
-      <Router>
-        <div className="App">
-          <Navigation />
-          <div className="container mt-4">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/courses" element={<Courses />} />
-              
-              {/* Protected Routes */}
-              <Route path="/dashboard" element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/course/:id" element={
-                <ProtectedRoute>
-                  <CourseDetail />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/lesson/:id" element={
-                <ProtectedRoute>
-                  <LessonDetail />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/create-course" element={
-                <ProtectedRoute roles={['INSTRUCTOR', 'ADMIN']}>
-                  <CreateCourse />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/edit-course/:id" element={
-                <ProtectedRoute roles={['INSTRUCTOR', 'ADMIN']}>
-                  <EditCourse />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/course/:courseId/create-lesson" element={
-                <ProtectedRoute roles={['INSTRUCTOR', 'ADMIN']}>
-                  <CreateLesson />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/edit-lesson/:id" element={
-                <ProtectedRoute roles={['INSTRUCTOR', 'ADMIN']}>
-                  <EditLesson />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/admin" element={
-                <ProtectedRoute roles={['ADMIN']}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } />
-            </Routes>
-          </div>
-          
-          <footer className="footer">
-            <div className="container">
-              <p>&copy; 2024 Online Course Management System. All rights reserved.</p>
-            </div>
-          </footer>
+      <div className="App">
+        <ScrollToTop />
+        <Navigation />
+        <div className="main-content">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/courses" element={<Courses />} />
+
+            {/* Protected Routes */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/course/:id" element={
+              <ProtectedRoute>
+                <CourseDetail />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/lesson/:id" element={
+              <ProtectedRoute>
+                <LessonDetail />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/create-course" element={
+              <ProtectedRoute roles={['INSTRUCTOR', 'ADMIN']}>
+                <CreateCourse />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/edit-course/:id" element={
+              <ProtectedRoute roles={['INSTRUCTOR', 'ADMIN']}>
+                <EditCourse />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/course/:courseId/create-lesson" element={
+              <ProtectedRoute roles={['INSTRUCTOR', 'ADMIN']}>
+                <CreateLesson />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/edit-lesson/:id" element={
+              <ProtectedRoute roles={['INSTRUCTOR', 'ADMIN']}>
+                <EditLesson />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/admin" element={
+              <ProtectedRoute roles={['ADMIN']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
+          </Routes>
         </div>
-      </Router>
+
+        <footer className="footer">
+          <div className="footer-content">
+            <p className="footer-brand">🎓 LearnHub</p>
+            <p className="footer-copy">© 2025 Online Course Management System. All rights reserved.</p>
+          </div>
+        </footer>
+      </div>
     </AuthProvider>
   );
 }
 
+function App() {
+  return (
+    <Router>
+      <AppRoutes />
+    </Router>
+  );
+}
+
 export default App;
+

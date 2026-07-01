@@ -4,10 +4,9 @@ import com.coursemanagement.dto.JwtResponse;
 import com.coursemanagement.dto.LoginRequest;
 import com.coursemanagement.dto.SignupRequest;
 import com.coursemanagement.entity.User;
-import com.coursemanagement.repository.UserRepository;
 import com.coursemanagement.security.JwtUtils;
+import com.coursemanagement.service.UserService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -16,21 +15,24 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-    @Autowired
-    AuthenticationManager authenticationManager;
 
-    @Autowired
-    UserRepository userRepository;
+    private final AuthenticationManager authenticationManager;
+    private final UserService userService;
+    private final PasswordEncoder encoder;
+    private final JwtUtils jwtUtils;
 
-    @Autowired
-    PasswordEncoder encoder;
-
-    @Autowired
-    JwtUtils jwtUtils;
+    public AuthController(AuthenticationManager authenticationManager,
+                          UserService userService,
+                          PasswordEncoder encoder,
+                          JwtUtils jwtUtils) {
+        this.authenticationManager = authenticationManager;
+        this.userService = userService;
+        this.encoder = encoder;
+        this.jwtUtils = jwtUtils;
+    }
 
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
@@ -52,27 +54,25 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
-        if (userRepository.existsByEmail(signUpRequest.getEmail())) {
-            return ResponseEntity
-                    .badRequest()
+        if (userService.existsByEmail(signUpRequest.getEmail())) {
+            return ResponseEntity.badRequest()
                     .body(new MessageResponse("Error: Email is already in use!"));
         }
 
-        // Create new user's account
-        User user = new User(signUpRequest.getFirstName(),
+        User user = new User(
+                signUpRequest.getFirstName(),
                 signUpRequest.getLastName(),
                 signUpRequest.getEmail(),
                 encoder.encode(signUpRequest.getPassword()),
                 signUpRequest.getRole());
 
-        userRepository.save(user);
+        userService.save(user);
 
         return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
     }
 
-    // Simple message response class
     public static class MessageResponse {
-        private String message;
+        private final String message;
 
         public MessageResponse(String message) {
             this.message = message;
@@ -81,9 +81,6 @@ public class AuthController {
         public String getMessage() {
             return message;
         }
-
-        public void setMessage(String message) {
-            this.message = message;
-        }
     }
 }
+

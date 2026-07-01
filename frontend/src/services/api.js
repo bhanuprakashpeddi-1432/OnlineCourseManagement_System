@@ -2,12 +2,15 @@ import axios from 'axios';
 
 const API_BASE_URL = '/api';
 
-// Create axios instance
+// Create a single, configured axios instance for all API calls
 const api = axios.create({
   baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
-// Add request interceptor to include auth token
+// Request interceptor — attaches JWT token to every request
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -16,32 +19,29 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Add response interceptor to handle errors
+// Response interceptor — handles expired tokens without full page reload
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Emit a custom event so AuthContext can handle logout + SPA navigation
+      // This avoids window.location.href which breaks the SPA
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
     }
     return Promise.reject(error);
   }
 );
 
-// Auth services
+// ─── Auth Services ────────────────────────────────────────────────────────────
 export const authService = {
   login: (email, password) => api.post('/auth/signin', { email, password }),
   register: (userData) => api.post('/auth/signup', userData),
 };
 
-// Course services
+// ─── Course Services ──────────────────────────────────────────────────────────
 export const courseService = {
   getAllCourses: () => api.get('/courses'),
   getCourseById: (id) => api.get(`/courses/${id}`),
@@ -54,7 +54,7 @@ export const courseService = {
   unenrollFromCourse: (courseId) => api.post(`/courses/${courseId}/unenroll`),
 };
 
-// Lesson services
+// ─── Lesson Services ──────────────────────────────────────────────────────────
 export const lessonService = {
   getLessonsByCourse: (courseId) => api.get(`/lessons/course/${courseId}`),
   getLessonById: (id) => api.get(`/lessons/${id}`),
@@ -64,11 +64,12 @@ export const lessonService = {
   markLessonComplete: (lessonId) => api.post(`/lessons/${lessonId}/complete`),
 };
 
-// Admin services
+// ─── Admin Services ───────────────────────────────────────────────────────────
 export const adminService = {
   getAllUsers: () => api.get('/admin/users'),
-  getUsersByRole: (role) => api.get(`/admin/users/${role}`),
+  getUsersByRole: (role) => api.get(`/admin/users/role/${role}`),
   toggleUserStatus: (userId) => api.put(`/admin/users/${userId}/toggle`),
 };
 
 export default api;
+
